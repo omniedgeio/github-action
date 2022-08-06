@@ -1,2 +1,3 @@
-# github-action
-Connect GitHub Action workflow to OmniEdge
+# OmniEdge for Github Action
+
+Connect GitHub Action workflow to your OmniEdge virtual network

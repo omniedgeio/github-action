@@ -1,0 +1,25 @@
+name: omniedge
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: install network tools
+        run: |
+          sudo -E apt-get -y update
+          sudo -E apt-get install -y traceroute net-tools
+      - name: omniedge Action
+        uses: ./
+        with:
+          securitykey: ${{ secrets.OMNIEDGE_SECURITY_KEY }}
+          virtualnetworkid: ${{ secrets.OMNIEDGE_VIRTUALNETWORK_ID }}
+      - name: check connection
+        run: |
+          ps aux | grep omniedge
+          ifconfig | grep inet
+          traceroute ${{ secrets.OMNIEDGE_IP }}

@@ -1,0 +1,41 @@
+name: 'OmniEdge for Github Action'
+description: 'Connect GitHub Action workflow to OmniEdge'
+inputs:
+  securitykey:
+    description: 'omniedge security key, generated from dashboard'
+    required: true
+  virtualnetworkid:
+    description: 'omniedge virtualnetworkid, get from dashbarod/virtual network'
+    required: true
+  version:
+    description: 'OmniEdge version.'
+    required: true
+    default: '0.2.3'
+runs:
+    using: 'composite'
+    steps:
+      - name: Prepare
+        shell: bash
+        id: prepare
+        run : |
+          sudo -E apt-get -y update
+          sudo -E apt-get install -y unzip
+      - name: Download
+        shell: bash
+        id: download
+        env:
+          HOSTNAME: Github-Action
+        run: |
+          curl https://omniedge.io/install/omniedge-install.sh | bash
+          sudo mv /usr/local/bin/omniedge /usr/bin
+          sudo hostname ${HOSTNAME}
+      - name: Run OmniEdge
+        shell: bash
+        env:
+          OMNIEDGE_SECURITY_KEY: ${{ inputs.securitykey }}
+          OMNIEDGE_VIRTUALNETWORK_ID: ${{ inputs.virtualnetworkid }}
+          HOSTNAME: ${{ inputs.hostname }}
+        run: |
+          omniedge login -s ${OMNIEDGE_SECURITY_KEY}
+          sleep 5
+          sudo omniedge join -n ${OMNIEDGE_VIRTUALNETWORK_ID} &
