@@ -26,7 +26,7 @@ runs:
         env:
           HOSTNAME: Github-Action
         run: |
-          curl https://omniedge.io/install/omniedge-install.sh | bash
+          curl https://connect.omniedge.io/install/omniedge-install.sh | bash
           sudo mv /usr/local/bin/omniedge /usr/bin
           sudo hostname ${HOSTNAME}
       - name: Run OmniEdge
