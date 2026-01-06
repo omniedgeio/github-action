@@ -10,7 +10,7 @@ inputs:
   version:
     description: 'OmniEdge version.'
     required: true
-    default: '0.2.4'
+    default: '0.3.0'
 runs:
     using: 'composite'
     steps:

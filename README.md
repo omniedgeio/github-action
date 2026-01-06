@@ -1,5 +1,7 @@
 # OmniEdge for Github Action
 
+> CLI Version: 0.3.0
+
 Bring Github Action into intranet, access nodes/devices from CI workflows.
 
 ## Usage
