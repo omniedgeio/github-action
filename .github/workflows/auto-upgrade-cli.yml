@@ -32,6 +32,17 @@ jobs:
           sed -i "s/default: '[0-9]*\.[0-9]*\.[0-9]*'/default: '${VERSION}'/" action.yml
           echo "Updated action.yml default version to ${VERSION}"
 
+      - name: Update README
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Add version badge to README if not present, or update existing
+          if grep -q "CLI Version:" README.md; then
+            sed -i "s/CLI Version: .*/CLI Version: ${VERSION}/" README.md
+          else
+            sed -i "1a\\\\n> CLI Version: ${VERSION}" README.md
+          fi
+          echo "Updated README to version ${VERSION}"
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
@@ -45,6 +56,7 @@ jobs:
 
             **Changes:**
             - Updated `action.yml` default version to `${{ steps.version.outputs.version }}`
+            - Updated `README.md` with new version
 
             **CLI Release:** https://github.com/omniedgeio/omniedge-cli/releases/tag/v${{ steps.version.outputs.version }}
           branch: auto-upgrade/cli-v${{ steps.version.outputs.version }}
