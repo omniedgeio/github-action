@@ -126,9 +126,22 @@ runs:
         fi
         
         echo "Starting OmniEdge in ${OMNIEDGE_MODE} mode..."
-        sudo omniedge start $ARGS &
+        echo "Command: sudo omniedge start $ARGS"
         
-        # Wait for connection
-        sleep 5
+        # Start omniedge and capture output
+        sudo nohup omniedge start $ARGS > /tmp/omniedge.log 2>&1 &
         
-        echo "OmniEdge started successfully"
+        # Wait for startup
+        sleep 10
+        
+        # Show log output
+        echo "=== OmniEdge Log ==="
+        cat /tmp/omniedge.log || true
+        
+        # Check if process is running
+        if pgrep -x omniedge > /dev/null; then
+          echo "OmniEdge started successfully"
+        else
+          echo "Warning: OmniEdge process not found, checking status..."
+          sudo omniedge status || true
+        fi
