@@ -125,28 +125,19 @@ runs:
           ARGS="$ARGS -v"
         fi
         
-        # Run daemon directly in background (bypass service manager)
-        # The --daemon flag runs the actual VPN worker instead of spawning a subprocess
-        echo "Starting OmniEdge daemon in ${OMNIEDGE_MODE} mode..."
-        echo "Command: sudo omniedge start $ARGS --daemon"
+        echo "Starting OmniEdge in ${OMNIEDGE_MODE} mode..."
+        echo "Command: sudo omniedge start $ARGS"
         
-        sudo nohup omniedge start $ARGS --daemon > /tmp/omniedge.log 2>&1 &
-        DAEMON_PID=$!
-        echo "Daemon PID: $DAEMON_PID"
+        # Run omniedge start (this authenticates and spawns background daemon)
+        sudo omniedge start $ARGS 2>&1 | tee /tmp/omniedge.log
         
         # Wait for interface to come up
-        echo "Waiting for OmniEdge to connect..."
+        echo "Waiting for OmniEdge interface..."
         for i in {1..30}; do
           if ip link show omniedge0 > /dev/null 2>&1; then
             echo "OmniEdge interface is up!"
             ip addr show omniedge0
             break
-          fi
-          if ! kill -0 $DAEMON_PID 2>/dev/null; then
-            echo "Daemon process exited unexpectedly"
-            echo "=== Log output ==="
-            cat /tmp/omniedge.log || true
-            exit 1
           fi
           sleep 1
         done
@@ -154,10 +145,13 @@ runs:
         # Final status check
         if ip link show omniedge0 > /dev/null 2>&1; then
           echo "OmniEdge started successfully"
+          sudo omniedge status || true
         else
           echo "Warning: OmniEdge interface not found after 30 seconds"
-          echo "=== Log output ==="
-          cat /tmp/omniedge.log || true
-          echo "=== Process status ==="
-          ps aux | grep omniedge || true
+          echo "=== Checking daemon process ==="
+          ps aux | grep -E "[o]mniedge" || echo "No omniedge process found"
+          echo "=== OmniEdge status ==="
+          sudo omniedge status || true
+          echo "=== Log files ==="
+          cat ~/.omniedge/logs/*.log 2>/dev/null | tail -50 || true
         fi
