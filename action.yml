@@ -1,41 +1,134 @@
 name: 'OmniEdge for Github Action'
-description: 'Connect GitHub Action workflow to OmniEdge'
+description: 'Connect GitHub Action workflow to OmniEdge VPN'
 inputs:
-  securitykey:
-    description: 'omniedge security key, generated from dashboard'
-    required: true
-  virtualnetworkid:
-    description: 'omniedge virtualnetworkid, get from dashbarod/virtual network'
-    required: true
+  mode:
+    description: 'OmniEdge mode: edge, nucleus, or dual'
+    required: false
+    default: 'edge'
+  network_id:
+    description: 'Network ID (required for edge/dual mode)'
+    required: false
+  security_key:
+    description: 'Security key (required for edge/dual mode)'
+    required: false
+  secret:
+    description: 'Cluster secret for nucleus/dual mode (min 16 chars)'
+    required: false
+  port:
+    description: 'UDP port (default: 51820)'
+    required: false
+    default: '51820'
+  as_exit_node:
+    description: 'Act as exit node (edge/dual mode)'
+    required: false
+    default: 'false'
+  exit_node:
+    description: 'Route traffic through exit node IP (edge/dual mode)'
+    required: false
+  verbose:
+    description: 'Enable debug logging'
+    required: false
+    default: 'false'
   version:
-    description: 'OmniEdge version.'
-    required: true
-    default: '1.0.2-beta.0'
+    description: 'OmniEdge CLI version'
+    required: false
+    default: '2.0.0'
 runs:
-    using: 'composite'
-    steps:
-      - name: Prepare
-        shell: bash
-        id: prepare
-        run : |
-          sudo -E apt-get -y update
-          sudo -E apt-get install -y unzip
-      - name: Download
-        shell: bash
-        id: download
-        env:
-          HOSTNAME: Github-Action
-        run: |
-          curl https://connect.omniedge.io/install/omniedge-install.sh | bash
-          sudo mv /usr/local/bin/omniedge /usr/bin
-          sudo hostname ${HOSTNAME}
-      - name: Run OmniEdge
-        shell: bash
-        env:
-          OMNIEDGE_SECURITY_KEY: ${{ inputs.securitykey }}
-          OMNIEDGE_VIRTUALNETWORK_ID: ${{ inputs.virtualnetworkid }}
-          HOSTNAME: ${{ inputs.hostname }}
-        run: |
-          omniedge login -s ${OMNIEDGE_SECURITY_KEY}
-          sleep 5
-          sudo omniedge join -n ${OMNIEDGE_VIRTUALNETWORK_ID} &
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        MODE="${{ inputs.mode }}"
+        if [[ "$MODE" != "edge" && "$MODE" != "nucleus" && "$MODE" != "dual" ]]; then
+          echo "Error: Invalid mode '$MODE'. Must be: edge, nucleus, or dual"
+          exit 1
+        fi
+        if [[ "$MODE" == "edge" || "$MODE" == "dual" ]]; then
+          if [[ -z "${{ inputs.network_id }}" || -z "${{ inputs.security_key }}" ]]; then
+            echo "Error: network_id and security_key are required for $MODE mode"
+            exit 1
+          fi
+        fi
+        if [[ "$MODE" == "nucleus" || "$MODE" == "dual" ]]; then
+          if [[ -z "${{ inputs.secret }}" ]]; then
+            echo "Error: secret is required for $MODE mode"
+            exit 1
+          fi
+        fi
+
+    - name: Install OmniEdge CLI
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64)  CLI_ARCH="x64" ;;
+          aarch64) CLI_ARCH="arm64" ;;
+          armv7l)  CLI_ARCH="armv7" ;;
+          *)       CLI_ARCH="$ARCH" ;;
+        esac
+        
+        echo "Downloading OmniEdge CLI v${VERSION} for ${CLI_ARCH}..."
+        curl -sL "https://github.com/omniedgeio/omniedge/releases/download/v${VERSION}/omniedge-cli-${VERSION}-linux-${CLI_ARCH}.tar.gz" -o /tmp/omniedge.tar.gz
+        sudo tar -xzf /tmp/omniedge.tar.gz -C /usr/local/bin
+        rm /tmp/omniedge.tar.gz
+        sudo chmod +x /usr/local/bin/omniedge*
+        
+        # Ensure binary is named 'omniedge'
+        if [ ! -f /usr/local/bin/omniedge ]; then
+          sudo mv /usr/local/bin/omniedge-cli-* /usr/local/bin/omniedge 2>/dev/null || true
+        fi
+        
+        omniedge --version
+
+    - name: Start OmniEdge
+      shell: bash
+      env:
+        OMNIEDGE_MODE: ${{ inputs.mode }}
+        OMNIEDGE_NETWORK_ID: ${{ inputs.network_id }}
+        OMNIEDGE_SECURITY_KEY: ${{ inputs.security_key }}
+        OMNIEDGE_SECRET: ${{ inputs.secret }}
+        OMNIEDGE_PORT: ${{ inputs.port }}
+        OMNIEDGE_AS_EXIT_NODE: ${{ inputs.as_exit_node }}
+        OMNIEDGE_EXIT_NODE: ${{ inputs.exit_node }}
+        OMNIEDGE_VERBOSE: ${{ inputs.verbose }}
+      run: |
+        # Build command arguments
+        ARGS="--mode ${OMNIEDGE_MODE}"
+        
+        # Add network credentials for edge/dual
+        if [[ "$OMNIEDGE_MODE" == "edge" || "$OMNIEDGE_MODE" == "dual" ]]; then
+          ARGS="$ARGS -n ${OMNIEDGE_NETWORK_ID} -s ${OMNIEDGE_SECURITY_KEY}"
+        fi
+        
+        # Add secret for nucleus/dual
+        if [[ "$OMNIEDGE_MODE" == "nucleus" || "$OMNIEDGE_MODE" == "dual" ]]; then
+          ARGS="$ARGS --secret ${OMNIEDGE_SECRET}"
+        fi
+        
+        # Add optional arguments
+        if [[ -n "$OMNIEDGE_PORT" && "$OMNIEDGE_PORT" != "51820" ]]; then
+          ARGS="$ARGS -p ${OMNIEDGE_PORT}"
+        fi
+        
+        if [[ "$OMNIEDGE_AS_EXIT_NODE" == "true" ]]; then
+          ARGS="$ARGS --as-exit-node"
+        fi
+        
+        if [[ -n "$OMNIEDGE_EXIT_NODE" ]]; then
+          ARGS="$ARGS --exit-node ${OMNIEDGE_EXIT_NODE}"
+        fi
+        
+        if [[ "$OMNIEDGE_VERBOSE" == "true" ]]; then
+          ARGS="$ARGS -v"
+        fi
+        
+        echo "Starting OmniEdge in ${OMNIEDGE_MODE} mode..."
+        sudo omniedge start $ARGS &
+        
+        # Wait for connection
+        sleep 5
+        
+        echo "OmniEdge started successfully"

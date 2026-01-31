@@ -3,22 +3,28 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
 jobs:
-  build:
+  test-edge-mode:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-      - name: install network tools
+
+      - name: Install network tools
         run: |
-          sudo -E apt-get -y update
-          sudo -E apt-get install -y traceroute net-tools
-      - name: omniedge Action
+          sudo apt-get -y update
+          sudo apt-get install -y traceroute net-tools
+
+      - name: OmniEdge Edge Mode
         uses: ./
         with:
-          securitykey: ${{ secrets.OMNIEDGE_SECURITY_KEY }}
-          virtualnetworkid: ${{ secrets.OMNIEDGE_VIRTUALNETWORK_ID }}
-      - name: check connection
+          mode: edge
+          network_id: ${{ secrets.OMNIEDGE_NETWORK_ID }}
+          security_key: ${{ secrets.OMNIEDGE_SECURITY_KEY }}
+
+      - name: Check connection
         run: |
           ps aux | grep omniedge
           ifconfig | grep inet
