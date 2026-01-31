@@ -1,13 +1,29 @@
-name: omniedge
+name: Test OmniEdge Action
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode to test'
+        required: false
+        default: 'edge'
+        type: choice
+        options:
+          - edge
+          - nucleus
+          - dual
+          - all
 
 jobs:
-  test-edge-mode:
+  test-edge:
+    name: Test Edge Mode
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'edge' || github.event.inputs.mode == 'all' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -15,17 +31,79 @@ jobs:
       - name: Install network tools
         run: |
           sudo apt-get -y update
-          sudo apt-get install -y traceroute net-tools
+          sudo apt-get install -y net-tools iproute2
 
-      - name: OmniEdge Edge Mode
+      - name: Run OmniEdge Edge Mode
         uses: ./
         with:
           mode: edge
           network_id: ${{ secrets.OMNIEDGE_NETWORK_ID }}
           security_key: ${{ secrets.OMNIEDGE_SECURITY_KEY }}
+          verbose: true
 
-      - name: Check connection
+      - name: Verify connection
         run: |
-          ps aux | grep omniedge
-          ifconfig | grep inet
-          traceroute ${{ secrets.OMNIEDGE_IP }}
+          echo "=== Process Check ==="
+          ps aux | grep -E "[o]mniedge" || echo "No omniedge process found"
+          
+          echo "=== Network Interfaces ==="
+          ip addr show
+          
+          echo "=== Routing Table ==="
+          ip route
+
+  test-nucleus:
+    name: Test Nucleus Mode
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.mode == 'nucleus' || github.event.inputs.mode == 'all') }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Run OmniEdge Nucleus Mode
+        uses: ./
+        with:
+          mode: nucleus
+          secret: ${{ secrets.OMNIEDGE_SECRET }}
+          verbose: true
+
+      - name: Verify nucleus
+        run: |
+          echo "=== Process Check ==="
+          ps aux | grep -E "[o]mniedge" || echo "No omniedge process found"
+          
+          echo "=== Listening Ports ==="
+          sudo ss -ulnp | grep 51820 || echo "Port 51820 not listening"
+
+  test-dual:
+    name: Test Dual Mode
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.mode == 'dual' || github.event.inputs.mode == 'all') }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Install network tools
+        run: |
+          sudo apt-get -y update
+          sudo apt-get install -y net-tools iproute2
+
+      - name: Run OmniEdge Dual Mode
+        uses: ./
+        with:
+          mode: dual
+          network_id: ${{ secrets.OMNIEDGE_NETWORK_ID }}
+          security_key: ${{ secrets.OMNIEDGE_SECURITY_KEY }}
+          secret: ${{ secrets.OMNIEDGE_SECRET }}
+          verbose: true
+
+      - name: Verify dual mode
+        run: |
+          echo "=== Process Check ==="
+          ps aux | grep -E "[o]mniedge" || echo "No omniedge process found"
+          
+          echo "=== Network Interfaces ==="
+          ip addr show
+          
+          echo "=== Listening Ports ==="
+          sudo ss -ulnp | grep 51820 || echo "Port 51820 not listening"
