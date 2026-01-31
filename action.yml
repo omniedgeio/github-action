@@ -125,23 +125,39 @@ runs:
           ARGS="$ARGS -v"
         fi
         
-        echo "Starting OmniEdge in ${OMNIEDGE_MODE} mode..."
-        echo "Command: sudo omniedge start $ARGS"
+        # Run daemon directly in background (bypass service manager)
+        # The --daemon flag runs the actual VPN worker instead of spawning a subprocess
+        echo "Starting OmniEdge daemon in ${OMNIEDGE_MODE} mode..."
+        echo "Command: sudo omniedge start $ARGS --daemon"
         
-        # Start omniedge and capture output
-        sudo nohup omniedge start $ARGS > /tmp/omniedge.log 2>&1 &
+        sudo nohup omniedge start $ARGS --daemon > /tmp/omniedge.log 2>&1 &
+        DAEMON_PID=$!
+        echo "Daemon PID: $DAEMON_PID"
         
-        # Wait for startup
-        sleep 10
+        # Wait for interface to come up
+        echo "Waiting for OmniEdge to connect..."
+        for i in {1..30}; do
+          if ip link show omniedge0 > /dev/null 2>&1; then
+            echo "OmniEdge interface is up!"
+            ip addr show omniedge0
+            break
+          fi
+          if ! kill -0 $DAEMON_PID 2>/dev/null; then
+            echo "Daemon process exited unexpectedly"
+            echo "=== Log output ==="
+            cat /tmp/omniedge.log || true
+            exit 1
+          fi
+          sleep 1
+        done
         
-        # Show log output
-        echo "=== OmniEdge Log ==="
-        cat /tmp/omniedge.log || true
-        
-        # Check if process is running
-        if pgrep -x omniedge > /dev/null; then
+        # Final status check
+        if ip link show omniedge0 > /dev/null 2>&1; then
           echo "OmniEdge started successfully"
         else
-          echo "Warning: OmniEdge process not found, checking status..."
-          sudo omniedge status || true
+          echo "Warning: OmniEdge interface not found after 30 seconds"
+          echo "=== Log output ==="
+          cat /tmp/omniedge.log || true
+          echo "=== Process status ==="
+          ps aux | grep omniedge || true
         fi
