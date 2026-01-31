@@ -83,6 +83,32 @@ runs:
         
         omniedge --version
 
+    - name: Setup TUN device
+      shell: bash
+      run: |
+        # Ensure TUN module is loaded
+        sudo modprobe tun || true
+        
+        # Create /dev/net directory if it doesn't exist
+        if [ ! -d /dev/net ]; then
+          sudo mkdir -p /dev/net
+        fi
+        
+        # Create TUN device if it doesn't exist
+        if [ ! -e /dev/net/tun ]; then
+          sudo mknod /dev/net/tun c 10 200
+          sudo chmod 666 /dev/net/tun
+        fi
+        
+        # Verify TUN device
+        if [ -e /dev/net/tun ]; then
+          echo "TUN device is available: /dev/net/tun"
+          ls -la /dev/net/tun
+        else
+          echo "Error: Failed to create TUN device"
+          exit 1
+        fi
+
     - name: Start OmniEdge
       shell: bash
       env:
