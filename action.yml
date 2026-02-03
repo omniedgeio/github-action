@@ -32,7 +32,7 @@ inputs:
   version:
     description: 'OmniEdge CLI version'
     required: false
-    default: '2.2.2'
+    default: '2.2.3'
 runs:
   using: 'composite'
   steps:
