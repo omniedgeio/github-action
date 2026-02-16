@@ -1,6 +1,6 @@
 # OmniEdge for Github Action
 
-> CLI Version: 2.8.8
+> CLI Version: 2.8.9
 
 Bring Github Action into your private network. Access nodes/devices from CI workflows.
 
